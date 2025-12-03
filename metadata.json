@@ -1,0 +1,5 @@
+{
+  "name": "DentiApp",
+  "description": "Aplicación móvil minimalista para gestión de turnos odontológicos con asistente virtual integrado.",
+  "requestFramePermissions": []
+}

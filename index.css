@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@layer components {
+  /* Botones */
+  .btn-base {
+    @apply px-6 py-3 rounded-xl font-medium transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply bg-primary-600 text-white shadow-lg shadow-primary-500/30 hover:bg-primary-700;
+  }
+  .btn-secondary {
+    @apply bg-white text-slate-800 shadow-sm border border-slate-200 hover:bg-slate-50;
+  }
+  .btn-outline {
+    @apply border-2 border-primary-600 text-primary-600 hover:bg-primary-50;
+  }
+  .btn-ghost {
+    @apply text-slate-600 hover:bg-slate-100;
+  }
+
+  /* Inputs */
+  .input-group {
+    @apply w-full space-y-1;
+  }
+  .input-base {
+    @apply w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all;
+  }
+  .input-icon {
+    @apply absolute left-3 top-1/2 -translate-y-1/2 text-slate-400;
+  }
+  .input-label {
+    @apply text-sm font-medium text-slate-700 ml-1;
+  }
+  .input-error {
+    @apply text-xs text-red-500 ml-1;
+  }
+
+  /* Tarjetas y Contenedores */
+  .card-base {
+    @apply bg-white border border-slate-100 rounded-2xl shadow-sm;
+  }
+  .card-hover {
+    @apply hover:bg-slate-50 transition-colors;
+  }
+  .card-content {
+    @apply p-4 flex flex-col items-center justify-center gap-2;
+  }
+
+  /* Navegación */
+  .nav-item {
+    @apply flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-300;
+  }
+  .nav-item-active {
+    @apply text-primary-600 -translate-y-2;
+  }
+  .nav-item-inactive {
+    @apply text-slate-400 hover:text-slate-600;
+  }
+  .nav-icon-bg {
+    @apply p-2 rounded-full transition-all;
+  }
+  .nav-icon-bg-active {
+    @apply bg-primary-50;
+  }
+  
+  /* Chat Bubble */
+  .chat-bubble {
+    @apply max-w-[80%] rounded-2xl p-3.5 shadow-sm;
+  }
+  .chat-bubble-user {
+    @apply bg-primary-600 text-white rounded-tr-none;
+  }
+  .chat-bubble-model {
+    @apply bg-white text-slate-700 rounded-tl-none border border-slate-100;
+  }
+}
+
+body {
+  -webkit-tap-highlight-color: transparent;
+  background-color: #f8fafc;
+}
