@@ -6,7 +6,9 @@ import { User, Appointment, Doctor, TreatmentType, AppNotification } from '../ty
 const USE_MOCK = false;
 
 // Use environment variable for Production (Vercel), fallback to Proxy for Local (Vite)
-const API_URL = process.env.VITE_API_URL || '/api';
+// IMPORTANT: We check if VITE_API_URL is defined. If so, we append '/api' to match the backend controllers.
+const ENV_URL = process.env.VITE_API_URL;
+const API_URL = ENV_URL ? `${ENV_URL}/api` : '/api';
 
 // --- MOCK DATA ---
 const MOCK_USER: User = {
