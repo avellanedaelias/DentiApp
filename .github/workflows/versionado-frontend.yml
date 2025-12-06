@@ -1,0 +1,19 @@
+name: Versionado DentiApp Frontend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generar número de versión
+        run: |
+          VERSION=$(date +'%Y.%m.%d-%H%M')
+          echo "Versión generada: $VERSION"
