@@ -1,0 +1,15 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- script: |
+    echo "Generando número de versión..."
+    VERSION=$(date +'%Y.%m.%d-%H%M')
+    echo "Versión generada: $VERSION"
+    echo "##vso[build.updatebuildnumber]$VERSION"
+  displayName: 'Generar número de versión'
