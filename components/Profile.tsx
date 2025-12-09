@@ -91,7 +91,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onLogout }) => {
                 <div>
                 <p className={`font-medium ${apt.status === 'cancelled' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{apt.treatment}</p>
                   <p className="text-xs text-slate-500">
-                    {new Date(apt.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} • {apt.time} hs • {apt.doctor}
+                    {new Date(apt.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} • {apt.time} hs • {apt.doctorName}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

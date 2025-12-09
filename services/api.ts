@@ -1,4 +1,4 @@
-import { User, Appointment, Doctor, TreatmentType, AppNotification } from '../types';
+import { User, Appointment, Doctor, TreatmentType, AppNotification, DaySchedule, DateRange } from '../types';
 
 // CONFIGURATION
 // Set to false to connect to your real .NET API (http://localhost:5000)
@@ -6,9 +6,7 @@ import { User, Appointment, Doctor, TreatmentType, AppNotification } from '../ty
 const USE_MOCK = false;
 
 // Use environment variable for Production (Vercel), fallback to Proxy for Local (Vite)
-// IMPORTANT: We check if VITE_API_URL is defined. If so, we append '/api' to match the backend controllers.
-const ENV_URL = process.env.VITE_API_URL;
-const API_URL = ENV_URL ? `${ENV_URL}/api` : '/api';
+const API_URL = process.env.VITE_API_URL || '/api';
 
 // --- MOCK DATA ---
 const MOCK_USER: User = {
@@ -25,13 +23,70 @@ const MOCK_TREATMENTS: TreatmentType[] = [
   { id: '4', name: 'Urgencia', duration: 30 },
 ];
 
-const MOCK_DOCTORS: Doctor[] = [
-  { id: 'd1', name: 'Dr. Ricardo Muelas', specialties: ['1', '4'], rating: 4.8 },
-  { id: 'd2', name: 'Dra. Ana Sonrisa', specialties: ['1', '2'], rating: 4.9 },
-  { id: 'd3', name: 'Dr. Pablo Brackets', specialties: ['3'], rating: 4.7 },
-  { id: 'd4', name: 'Dra. Elena Raíz', specialties: ['1', '4'], rating: 5.0 },
-  { id: 'd5', name: 'Dr. Marcos White', specialties: ['2', '3'], rating: 4.6 },
-  { id: 'd6', name: 'Dra. Sofia Kids', specialties: ['1', '2'], rating: 4.9 },
+// Helper to create default schedule (Mon-Fri 9-17)
+const createDefaultSchedule = (): DaySchedule[] => {
+  return Array.from({ length: 7 }, (_, i) => ({
+    dayOfWeek: i,
+    isWorking: i !== 0 && i !== 6, // Mon-Fri working
+    startTime: '09:00',
+    endTime: '17:00'
+  }));
+};
+
+let MOCK_DOCTORS: Doctor[] = [
+  { 
+    id: 'd1', 
+    name: 'Dr. Ricardo Muelas', 
+    specialties: ['1', '4'], 
+    rating: 4.8,
+    schedule: createDefaultSchedule(), // Default schedule
+    blockedDates: []
+  },
+  { 
+    id: 'd2', 
+    name: 'Dra. Ana Sonrisa', 
+    specialties: ['1', '2'], 
+    rating: 4.9,
+    schedule: Array.from({ length: 7 }, (_, i) => ({ // Solo trabaja mañana
+      dayOfWeek: i,
+      isWorking: i !== 0 && i !== 6,
+      startTime: '08:00',
+      endTime: '12:00'
+    })),
+    blockedDates: []
+  },
+  { 
+    id: 'd3', 
+    name: 'Dr. Pablo Brackets', 
+    specialties: ['3'], 
+    rating: 4.7,
+    schedule: createDefaultSchedule(),
+    blockedDates: []
+  },
+  { 
+    id: 'd4', 
+    name: 'Dra. Elena Raíz', 
+    specialties: ['1', '4'], 
+    rating: 5.0,
+    schedule: createDefaultSchedule(),
+    blockedDates: []
+  },
+  { 
+    id: 'd5', 
+    name: 'Dr. Marcos White', 
+    specialties: ['2', '3'], 
+    rating: 4.6,
+    schedule: createDefaultSchedule(),
+    blockedDates: []
+  },
+  { 
+    id: 'd6', 
+    name: 'Dra. Sofia Kids', 
+    specialties: ['1', '2'], 
+    rating: 4.9,
+    schedule: createDefaultSchedule(),
+    blockedDates: []
+  },
 ];
 
 const MOCK_APPOINTMENTS: Appointment[] = [
@@ -40,16 +95,20 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     date: '2024-06-15',
     time: '14:30',
     treatment: 'Limpieza Dental',
-    doctor: 'Dr. Pérez',
-    status: 'confirmed'
+    doctorId: 'd1',
+    doctorName: 'Dr. Ricardo Muelas',
+    status: 'confirmed',
+    patientName: 'Juan Pérez'
   },
   {
     id: '102',
     date: '2024-02-10',
     time: '09:00',
     treatment: 'Consulta General',
-    doctor: 'Dra. Gómez',
-    status: 'completed'
+    doctorId: 'd2',
+    doctorName: 'Dra. Ana Sonrisa',
+    status: 'completed',
+    patientName: 'Maria Garcia'
   }
 ];
 
@@ -118,6 +177,37 @@ export const doctorService = {
        if (!response.ok) throw new Error('Error fetching treatments');
       return response.json();
     }
+  },
+
+  // Mock methods for updating schedule (Only works in Mock mode for now)
+  updateSchedule: async (doctorId: string, schedule: DaySchedule[]): Promise<void> => {
+    if (USE_MOCK) {
+      MOCK_DOCTORS = MOCK_DOCTORS.map(d => d.id === doctorId ? { ...d, schedule } : d);
+      return Promise.resolve();
+    }
+    
+    const response = await fetch(`${API_URL}/doctors/${doctorId}/schedule`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(schedule)
+    });
+    
+    if (!response.ok) throw new Error('Error updating schedule');
+  },
+
+  addBlockedDate: async (doctorId: string, blocked: DateRange): Promise<void> => {
+    if (USE_MOCK) {
+      MOCK_DOCTORS = MOCK_DOCTORS.map(d => d.id === doctorId ? { ...d, blockedDates: [...d.blockedDates, blocked] } : d);
+      return Promise.resolve();
+    }
+    
+    const response = await fetch(`${API_URL}/doctors/${doctorId}/blocked-dates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(blocked)
+    });
+  
+    if (!response.ok) throw new Error('Error adding blocked date');
   }
 };
 
@@ -146,16 +236,18 @@ export const appointmentService = {
     }
   },
 
-  create: async (userId: string, date: string, time: string, treatment: string, doctorName: string): Promise<Appointment> => {
+  create: async (userId: string, date: string, time: string, treatment: string, doctorId: string): Promise<Appointment> => {
     if (USE_MOCK) {
       return new Promise((resolve) => {
         setTimeout(() => {
+          const doc = MOCK_DOCTORS.find(d => d.id === doctorId);
           const newAppt: Appointment = {
             id: Date.now().toString(),
             date,
             time,
             treatment,
-            doctor: doctorName,
+            doctorId: doctorId,
+            doctorName: doc ? doc.name : 'Desconocido',
             status: 'confirmed'
           };
           resolve(newAppt);
@@ -166,12 +258,13 @@ export const appointmentService = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          userId: parseInt(userId), // Assuming SQL int ID
-          date: `${date}T${time}:00`, // ISO format
+          userId: parseInt(userId), 
+          date: `${date}T${time}:00`, 
           treatment,
-          doctor: doctorName
+          doctorId: doctorId 
         })
       });
+      
       if (!response.ok) {
         // Intentar leer el mensaje de error del backend
         try {

@@ -30,7 +30,7 @@ export const Chat: React.FC<ChatProps> = ({ user }) => {
         let contextString = '';
         if (nextAppointment) {
           const dateStr = new Date(nextAppointment.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-          contextString = `El usuario tiene un próximo turno confirmado el ${dateStr} a las ${nextAppointment.time}hs para ${nextAppointment.treatment} con ${nextAppointment.doctor}.`;
+          contextString = `El usuario tiene un próximo turno confirmado el ${dateStr} a las ${nextAppointment.time}hs para ${nextAppointment.treatment} con ${nextAppointment.doctorName}.`;
         } else {
           contextString = 'El usuario no tiene turnos confirmados próximos.';
         }

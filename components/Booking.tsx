@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ViewState, TimeSlot, TreatmentType, User, Doctor } from '../types';
+import { ViewState, TimeSlot, TreatmentType, User, Doctor, Appointment } from '../types';
 import { Button } from './Button';
 import { ChevronLeft, CheckCircle, Calendar as CalendarIcon, AlertTriangle, User as UserIcon, Star, Lock } from 'lucide-react';
 import { appointmentService, doctorService } from '../services/api';
@@ -8,24 +8,6 @@ interface BookingProps {
   onChangeView: (view: ViewState) => void;
   user: User;
 }
-
-const morningSlots: TimeSlot[] = [
-  { time: '09:00', available: true },
-  { time: '09:30', available: false },
-  { time: '10:00', available: true },
-  { time: '10:30', available: true },
-  { time: '11:00', available: true },
-  { time: '11:30', available: false },
-];
-
-const afternoonSlots: TimeSlot[] = [
-  { time: '14:00', available: true },
-  { time: '14:30', available: true },
-  { time: '15:00', available: false },
-  { time: '15:30', available: true },
-  { time: '16:00', available: true },
-  { time: '16:30', available: true },
-];
 
 export const Booking: React.FC<BookingProps> = ({ onChangeView, user }) => {
   // State for Data
@@ -40,9 +22,13 @@ export const Booking: React.FC<BookingProps> = ({ onChangeView, user }) => {
   const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null); // 'any' or doctorId
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [generatedSlots, setGeneratedSlots] = useState<TimeSlot[]>([]);
+  const [dayAppointments, setDayAppointments] = useState<Appointment[]>([]); // Turnos existentes del día
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [finalDoctorId, setFinalDoctorId] = useState<string | null>(null); // For summary
 
   // Load Data on Mount
   useEffect(() => {
@@ -59,7 +45,7 @@ export const Booking: React.FC<BookingProps> = ({ onChangeView, user }) => {
 
         // Identificar tratamientos con turnos activos (no completados)
         const active = userAppointments
-          .filter(a => a.status !== 'completed' && a.status !== 'cancelled' as any) // 'cancelled' might not be in type yet but good practice
+          .filter(a => a.status !== 'completed' && a.status !== 'cancelled' as any) 
           .map(a => a.treatment);
         
         setActiveTreatments(active);
@@ -73,6 +59,133 @@ export const Booking: React.FC<BookingProps> = ({ onChangeView, user }) => {
     fetchData();
   }, [user.id]);
 
+  // Cargar turnos del día seleccionado
+  useEffect(() => {
+    const loadDayAppointments = async () => {
+      if (!selectedDate) return;
+      setLoadingSlots(true);
+      try {
+        const appts = await appointmentService.getAllByDate(selectedDate);
+        // Filtramos solo los confirmados para calcular ocupación
+        const confirmed = appts.filter(a => a.status === 'confirmed');
+        setDayAppointments(confirmed);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    loadDayAppointments();
+  }, [selectedDate]);
+
+  // Helper: Convertir "HH:mm" a minutos desde medianoche
+  const timeToMinutes = (time: string) => {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  // Helper: Generar TimeSlots dinámicos
+  const generateSlotsForDate = () => {
+    if (!selectedDate || !selectedTreatment) return [];
+    if (loadingSlots) return []; // Esperar a que carguen los turnos existentes
+
+    const dateObj = new Date(selectedDate);
+    // getDay returns 0 for Sunday, we match with our Doctor DaySchedule (0=Sun)
+    const dayOfWeek = dateObj.getUTCDay(); 
+
+    // Obtener duración del tratamiento seleccionado
+    const selectedTreatmentObj = treatments.find(t => t.id === selectedTreatment);
+    const newDuration = selectedTreatmentObj ? selectedTreatmentObj.duration : 30;
+
+    // Find relevant doctors
+    let candidateDoctors: Doctor[] = [];
+    if (selectedDoctor && selectedDoctor !== 'any') {
+      const doc = doctors.find(d => d.id === selectedDoctor);
+      if (doc) candidateDoctors = [doc];
+    } else {
+      // All doctors that do this treatment
+      candidateDoctors = doctors.filter(d => d.specialties.includes(selectedTreatment));
+    }
+
+    // Filter doctors who are blocked (Licencia) on this date
+    candidateDoctors = candidateDoctors.filter(doc => {
+      const isBlocked = doc.blockedDates.some(range => {
+         const start = new Date(range.startDate);
+         const end = new Date(range.endDate);
+         const check = new Date(selectedDate);
+         return check >= start && check <= end;
+      });
+      return !isBlocked;
+    });
+
+    const slotsMap = new Set<string>();
+
+    candidateDoctors.forEach(doc => {
+      const schedule = doc.schedule.find(s => s.dayOfWeek === dayOfWeek);
+      if (schedule && schedule.isWorking) {
+         
+         // Buscar turnos existentes de ESTE doctor para ESTE día
+         // IMPORTANTE: Ahora comparamos por ID
+         const doctorAppts = dayAppointments.filter(a => a.doctorId === doc.id);
+
+         let currentTime = schedule.startTime;
+         const endTimeMinutes = timeToMinutes(schedule.endTime);
+
+         while (timeToMinutes(currentTime) < endTimeMinutes) {
+            const currentSlotMinutes = timeToMinutes(currentTime);
+            const currentSlotEnd = currentSlotMinutes + newDuration; // Hora fin del potencial nuevo turno
+
+            // Si el turno termina después del horario de salida del doctor, no es válido
+            if (currentSlotEnd > endTimeMinutes) {
+                 // Siguiente slot
+                 const [h, m] = currentTime.split(':').map(Number);
+                 const d = new Date();
+                 d.setHours(h, m + 30);
+                 currentTime = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
+                 continue;
+            }
+            
+            // Verificar si este slot choca con algún turno existente
+            const isOccupied = doctorAppts.some(appt => {
+              const apptStart = timeToMinutes(appt.time);
+              // Buscar duración del tratamiento de ese turno existente
+              const treat = treatments.find(t => t.name === appt.treatment);
+              const existingDuration = treat ? treat.duration : 30;
+              const apptEnd = apptStart + existingDuration;
+
+              // Lógica de Solapamiento de Intervalos:
+              // max(StartA, StartB) < min(EndA, EndB)
+              return Math.max(currentSlotMinutes, apptStart) < Math.min(currentSlotEnd, apptEnd);
+            });
+
+            if (!isOccupied) {
+               slotsMap.add(currentTime);
+            }
+
+            // Add 30 mins for next slot check
+            const [h, m] = currentTime.split(':').map(Number);
+            const d = new Date();
+            d.setHours(h, m + 30);
+            currentTime = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
+         }
+      }
+    });
+
+    // Convert Set to Array and sort
+    const sortedSlots = Array.from(slotsMap).sort().map(time => ({ time, available: true }));
+    setGeneratedSlots(sortedSlots);
+  };
+
+  // Regenerar slots cuando cambian los datos o la carga termina
+  useEffect(() => {
+    if (selectedDate && !loadingSlots) {
+      generateSlotsForDate();
+      setSelectedTime(null);
+    }
+  }, [selectedDate, selectedDoctor, loadingSlots, dayAppointments]);
+
+
   const handleConfirm = async () => {
     if (!selectedTreatment || !selectedDate || !selectedTime) return;
     
@@ -82,25 +195,75 @@ export const Booking: React.FC<BookingProps> = ({ onChangeView, user }) => {
     try {
       const treatmentName = treatments.find(t => t.id === selectedTreatment)?.name || 'Consulta';
       
-      // Resolve doctor name
-      let doctorName = 'Profesional de Turno';
-      if (selectedDoctor && selectedDoctor !== 'any') {
-        doctorName = doctors.find(d => d.id === selectedDoctor)?.name || doctorName;
-      } else {
-        // Logic for default assignment if "any" is selected
-        // Pick a random available doctor for that treatment
-        const availableDocs = doctors.filter(d => d.specialties.includes(selectedTreatment));
+      // Obtener duración del tratamiento nuevo
+      const selectedTreatmentObj = treatments.find(t => t.id === selectedTreatment);
+      const newDuration = selectedTreatmentObj ? selectedTreatmentObj.duration : 30;
+
+      // Resolve doctor ID
+      let doctorIdToBook = selectedDoctor;
+
+      // Logic to resolve "any" doctor or confirm specific doctor availability
+      // We must pick a doctor that is free at this specific time slot
+      if (!selectedDoctor || selectedDoctor === 'any') {
+        const dateObj = new Date(selectedDate);
+        const dayOfWeek = dateObj.getUTCDay();
+        const slotMinutes = timeToMinutes(selectedTime);
+        const slotEnd = slotMinutes + newDuration;
+
+        const availableDocs = doctors.filter(d => {
+          // 1. Hace el tratamiento?
+          if (!d.specialties.includes(selectedTreatment)) return false;
+          
+          // 2. Trabaja ese día y hora?
+          const schedule = d.schedule.find(s => s.dayOfWeek === dayOfWeek);
+          if (!schedule || !schedule.isWorking) return false;
+          if (slotMinutes < timeToMinutes(schedule.startTime) || slotEnd > timeToMinutes(schedule.endTime)) return false;
+
+          // 3. No está de licencia?
+          const isBlocked = d.blockedDates.some(range => {
+             const start = new Date(range.startDate);
+             const end = new Date(range.endDate);
+             const check = new Date(selectedDate);
+             return check >= start && check <= end;
+          });
+          if (isBlocked) return false;
+
+          // 4. No tiene solapamiento con otros turnos?
+
+          const docAppts = dayAppointments.filter(a => a.doctorId === d.id);
+          const isBusy = docAppts.some(appt => {
+              const start = timeToMinutes(appt.time);
+              const treat = treatments.find(t => t.name === appt.treatment);
+              const dur = treat ? treat.duration : 30;
+              const end = start + dur;
+              
+              // Overlap check
+              return Math.max(slotMinutes, start) < Math.min(slotEnd, end);
+          });
+          
+          return !isBusy;
+        });
+
         if (availableDocs.length > 0) {
-           doctorName = availableDocs[0].name;
+           // Simple load balancing: Random
+           const randomDoc = availableDocs[Math.floor(Math.random() * availableDocs.length)];
+           doctorIdToBook = randomDoc.id;
+        } else {
+            throw new Error("No hay profesionales disponibles en este horario (alguien más pudo haberlo reservado recién).");
         }
+      } else {
+        // Specific doctor selected
+        doctorIdToBook = selectedDoctor;
       }
+
+      setFinalDoctorId(doctorIdToBook);
       
       await appointmentService.create(
         user.id,
         selectedDate,
         selectedTime,
         treatmentName,
-        doctorName
+        doctorIdToBook!
       );
       
       setSuccess(true);
@@ -223,7 +386,6 @@ export const Booking: React.FC<BookingProps> = ({ onChangeView, user }) => {
           </div>
         )}
 
-
         {/* STEP 2: Doctor Selection */}
         {step === 2 && (
           <div className="space-y-4 animate-in slide-in-from-right duration-300">
@@ -307,34 +469,18 @@ export const Booking: React.FC<BookingProps> = ({ onChangeView, user }) => {
 
             {selectedDate && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <h3 className="text-sm font-medium text-slate-700 mb-3">Horarios Disponibles</h3>
+                <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center justify-between">
+                   Horarios Disponibles
+                   {loadingSlots && <span className="text-xs text-slate-400 animate-pulse">Verificando agenda...</span>}
+                </h3>
                 
-                <div className="mb-4">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Mañana</span>
-                  <div className="grid grid-cols-3 gap-3">
-                    {morningSlots.map(slot => (
-                      <button
-                        key={slot.time}
-                        disabled={!slot.available}
-                        onClick={() => setSelectedTime(slot.time)}
-                        className={`py-2 px-3 rounded-lg text-sm font-medium transition-all border ${
-                          !slot.available 
-                            ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed decoration-slice line-through' 
-                            : selectedTime === slot.time
-                              ? 'bg-primary-600 text-white border-primary-600 shadow-lg shadow-primary-500/30 transform scale-105'
-                              : 'bg-white border-slate-200 text-slate-600 hover:border-primary-300 hover:bg-primary-50'
-                        }`}
-                      >
-                        {slot.time}
-                      </button>
-                    ))}
+                {!loadingSlots && generatedSlots.length === 0 ? (
+                  <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-100 text-slate-500 text-sm">
+                    No hay turnos disponibles para esta fecha. <br/> Intenta con otro día o selecciona otro profesional.
                   </div>
-                </div>
-
-                <div>
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Tarde</span>
+                ) : (
                   <div className="grid grid-cols-3 gap-3">
-                    {afternoonSlots.map(slot => (
+                    {generatedSlots.map(slot => (
                       <button
                         key={slot.time}
                         disabled={!slot.available}
@@ -351,7 +497,7 @@ export const Booking: React.FC<BookingProps> = ({ onChangeView, user }) => {
                       </button>
                     ))}
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>

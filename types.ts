@@ -20,7 +20,8 @@ export interface Appointment {
   date: string; // ISO Date string
   time: string;
   treatment: string;
-  doctor: string;
+  doctorId: string; // Foreign Key
+  doctorName: string; // Display Name
   status: 'confirmed' | 'pending' | 'completed' | 'cancelled';
   patientName?: string; // New field for admin view
 }
@@ -50,9 +51,26 @@ export interface TreatmentType {
   duration: number; // in minutes
 }
 
+// New interfaces for Scheduling
+export interface DaySchedule {
+  dayOfWeek: number; // 0 = Sunday, 1 = Monday, etc.
+  isWorking: boolean;
+  startTime: string; // "09:00"
+  endTime: string;   // "17:00"
+}
+
+export interface DateRange {
+  id: string;
+  startDate: string; // ISO Date "YYYY-MM-DD"
+  endDate: string;   // ISO Date "YYYY-MM-DD"
+  reason: string;
+}
+
 export interface Doctor {
   id: string;
   name: string;
   specialties: string[]; // Array of TreatmentType IDs
   rating: number;
+  schedule: DaySchedule[]; // Array of 7 days
+  blockedDates: DateRange[];
 }

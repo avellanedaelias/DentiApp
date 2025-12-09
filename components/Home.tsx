@@ -148,7 +148,7 @@ export const Home: React.FC<HomeProps> = ({ user, onChangeView }) => {
                   <span className="inline-block px-2 py-1 bg-white/10 rounded-md text-xs font-medium text-primary-100 mb-2 backdrop-blur-sm border border-white/10">
                     {nextAppointment.treatment}
                   </span>
-                  <h4 className="text-lg font-bold leading-tight">{nextAppointment.doctor}</h4>
+                  <h4 className="text-lg font-bold leading-tight">{nextAppointment.doctorName}</h4>
                 </div>
                 <span className="bg-white text-primary-700 px-3 py-1 rounded-full text-xs font-bold shadow-sm">
                   {nextAppointment.status === 'confirmed' ? 'Confirmado' : nextAppointment.status}
