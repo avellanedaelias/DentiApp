@@ -15,7 +15,15 @@ const MOCK_USER: User = {
   id: '1',
   name: 'Juan Pérez',
   email: 'juan@test.com',
-  phone: '555-0123'
+  phone: '555-0123',
+  role: 'patient'
+};
+
+const MOCK_ADMIN: User = {
+  id: '99',
+  name: 'Elias Avellaneda',
+  email: 'admin@denti.app',
+  role: 'admin'
 };
 
 const MOCK_TREATMENTS: TreatmentType[] = [
@@ -127,7 +135,10 @@ export const authService = {
   login: async (email: string, password: string): Promise<User> => {
     if (USE_MOCK) {
       return new Promise((resolve) => {
-        setTimeout(() => resolve(MOCK_USER), 1000);
+        setTimeout(() => {
+            if (email.includes('admin')) resolve(MOCK_ADMIN);
+            else resolve(MOCK_USER);
+        }, 1000);
       });
     } else {
       const response = await fetch(`${API_URL}/auth/login`, {
@@ -136,7 +147,7 @@ export const authService = {
         body: JSON.stringify({ email, password })
       });
       if (!response.ok) {
-        try {
+         try {
           const errorData = await response.json();
           throw new Error(errorData.message);
          } catch(e) {
@@ -144,7 +155,7 @@ export const authService = {
          }
       }
       return response.json();
-      }    
+    }
   },
 
   register: async (name: string, email: string, password: string): Promise<User> => {
@@ -194,10 +205,26 @@ export const authService = {
 
 export const userService = {
   getAll: async (): Promise<User[]> => {
-    if (USE_MOCK) return Promise.resolve([MOCK_USER]);
+    if (USE_MOCK) return Promise.resolve([MOCK_USER, MOCK_ADMIN]);
     const response = await fetch(`${API_URL}/users`);
     if (!response.ok) throw new Error('Error fetching users');
     return response.json();
+  },
+
+  delete: async (id: string): Promise<void> => {
+    if (USE_MOCK) return Promise.resolve();
+    const response = await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error('Error deleting user');
+  },
+
+  updateRole: async (id: string, role: 'admin' | 'patient'): Promise<void> => {
+    if (USE_MOCK) return Promise.resolve();
+    const response = await fetch(`${API_URL}/users/${id}/role`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role })
+    });
+    if (!response.ok) throw new Error('Error updating user role');
   }
 };
 

@@ -15,6 +15,7 @@ export interface User {
   name: string;
   email: string;
   phone?: string;
+  role: 'admin' | 'patient';
 }
 
 export interface Appointment {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Appointment, User, Doctor, DaySchedule, DateRange, TreatmentType } from '../types';
 import { appointmentService, doctorService, userService } from '../services/api';
-import { Calendar, User as UserIcon, LogOut, Activity, CheckCircle, Ban, Search, Clock, Filter, Briefcase, Plus, Save, Trash2, LayoutDashboard, Users, FileText, ClipboardList, ChevronRight, X } from 'lucide-react';
+import { Calendar, User as UserIcon, LogOut, Activity, CheckCircle, Ban, Search, Clock, Filter, Briefcase, Plus, Save, Trash2, LayoutDashboard, Users, FileText, ClipboardList, ChevronRight, X, ShieldAlert } from 'lucide-react';
 import { Logo } from './Logo';
 
 interface AdminPanelProps {
@@ -231,27 +231,28 @@ const PatientsView: React.FC = () => {
     });
 
     useEffect(() => {
-        const loadInitialData = async () => {
-           setLoading(true);
-           try {
-             const [usersData, treatData, docData] = await Promise.all([
-                 userService.getAll(),
-                 doctorService.getTreatments(),
-                 doctorService.getAll()
-             ]);
-             setUsers(usersData);
-             setTreatments(treatData);
-             setDoctors(docData);
-             
-             // Pre-select defaults for modal
-             if(treatData.length > 0) setNewRecord(prev => ({ ...prev, treatmentId: treatData[0].id }));
-             if(docData.length > 0) setNewRecord(prev => ({ ...prev, doctorId: docData[0].id }));
-
-           } catch(e) { console.error(e) }
-           finally { setLoading(false); }
-        };
         loadInitialData();
     }, []);
+
+    const loadInitialData = async () => {
+        setLoading(true);
+        try {
+          const [usersData, treatData, docData] = await Promise.all([
+              userService.getAll(),
+              doctorService.getTreatments(),
+              doctorService.getAll()
+          ]);
+          setUsers(usersData);
+          setTreatments(treatData);
+          setDoctors(docData);
+          
+          // Pre-select defaults for modal
+          if(treatData.length > 0) setNewRecord(prev => ({ ...prev, treatmentId: treatData[0].id }));
+          if(docData.length > 0) setNewRecord(prev => ({ ...prev, doctorId: docData[0].id }));
+
+        } catch(e) { console.error(e) }
+        finally { setLoading(false); }
+     };
 
     useEffect(() => {
         const loadHistory = async () => {
@@ -263,9 +264,13 @@ const PatientsView: React.FC = () => {
         loadHistory();
     }, [selectedUser]);
 
+    // FILTER ADMINS OUT & SEARCH
     const filteredUsers = users.filter(u => 
-       u.name.toLowerCase().includes(search.toLowerCase()) || 
-       u.email.toLowerCase().includes(search.toLowerCase())
+       // Filter out admins (safety check) - UNLESS you want to allow managing admins
+       (u.role !== 'admin') &&
+       // Search filter
+       (u.name.toLowerCase().includes(search.toLowerCase()) || 
+       u.email.toLowerCase().includes(search.toLowerCase()))
     );
 
     const handleSaveNote = async (id: string) => {
@@ -301,7 +306,6 @@ const PatientsView: React.FC = () => {
             }
 
             // 3. Actualizar lista
-            // Re-fetch to be sure or append
             const newData = await appointmentService.getByUser(selectedUser.id);
             setHistory(newData);
 
@@ -314,6 +318,33 @@ const PatientsView: React.FC = () => {
             alert('Error al crear registro');
         }
     };
+
+    const handleDeleteUser = async (e: React.MouseEvent, userToDelete: User) => {
+        e.stopPropagation();
+        if(window.confirm(`¿Estás seguro de eliminar al usuario ${userToDelete.name}? Esta acción no se puede deshacer.`)) {
+            try {
+                await userService.delete(userToDelete.id);
+                setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+                if(selectedUser?.id === userToDelete.id) setSelectedUser(null);
+            } catch (error) {
+                alert('Error al eliminar usuario');
+            }
+        }
+    };
+
+    const handlePromoteUser = async (e: React.MouseEvent, userToPromote: User) => {
+        e.stopPropagation();
+        if(window.confirm(`¿Confirma promover a ${userToPromote.name} a ADMINISTRADOR?`)) {
+            try {
+                await userService.updateRole(userToPromote.id, 'admin');
+                alert(`${userToPromote.name} ahora es Administrador.`);
+                // Recargar lista (desaparecerá del filtro si ocultamos admins)
+                loadInitialData();
+            } catch (error) {
+                alert('Error al actualizar rol');
+            }
+        }
+    }
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in slide-in-from-bottom-2 duration-500">
@@ -337,20 +368,39 @@ const PatientsView: React.FC = () => {
                        <div className="p-8 text-center text-slate-400">No se encontraron pacientes.</div>
                     ) : (
                        filteredUsers.map(u => (
-                          <button
+                          <div
                             key={u.id}
                             onClick={() => setSelectedUser(u)}
-                            className={`w-full text-left p-4 flex items-center gap-3 border-b border-slate-50 hover:bg-slate-50 transition-colors ${selectedUser?.id === u.id ? 'bg-primary-50' : ''}`}
+                            className={`w-full text-left p-4 flex items-center justify-between border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer group ${selectedUser?.id === u.id ? 'bg-primary-50' : ''}`}
                           >
-                             <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold capitalize ${selectedUser?.id === u.id ? 'bg-primary-200 text-primary-700' : 'bg-slate-100 text-slate-500'}`}>
-                                {u.name.charAt(0)}
+                             <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold capitalize flex-shrink-0 ${selectedUser?.id === u.id ? 'bg-primary-200 text-primary-700' : 'bg-slate-100 text-slate-500'}`}>
+                                    {u.name.charAt(0)}
+                                </div>
+                                <div className="overflow-hidden">
+                                    <p className="font-medium text-slate-900 truncate capitalize">{u.name}</p>
+                                    <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                                </div>
                              </div>
-                             <div className="flex-1 overflow-hidden">
-                                <p className="font-medium text-slate-900 truncate capitalize">{u.name}</p>
-                                <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                             
+                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                    onClick={(e) => handlePromoteUser(e, u)}
+                                    title="Promover a Admin"
+                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                >
+                                    <ShieldAlert size={16} />
+                                </button>
+                                <button 
+                                    onClick={(e) => handleDeleteUser(e, u)}
+                                    title="Eliminar Usuario"
+                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                                <ChevronRight size={16} className="text-slate-300 ml-1" />
                              </div>
-                             <ChevronRight size={16} className="text-slate-300" />
-                          </button>
+                          </div>
                        ))
                     )}
                  </div>
