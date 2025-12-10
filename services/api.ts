@@ -110,7 +110,8 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     doctorId: 'd2',
     doctorName: 'Dra. Ana Sonrisa',
     status: 'completed',
-    patientName: 'Maria Garcia'
+    patientName: 'Maria Garcia',
+    clinicalNotes: 'Paciente refiere leve sensibilidad. Se recomienda pasta fluorada.'
   }
 ];
 
@@ -336,6 +337,16 @@ export const appointmentService = {
       });
       if (!response.ok) throw new Error('Error cancelando turno');
     }
+  },
+
+  updateClinicalNotes: async (id: string, notes: string): Promise<void> => {
+    if (USE_MOCK) return Promise.resolve();
+    const response = await fetch(`${API_URL}/appointments/${id}/notes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+    });
+    if (!response.ok) throw new Error('Error guardando evolución');
   }
 };
 

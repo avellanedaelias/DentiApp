@@ -26,6 +26,7 @@ export interface Appointment {
   doctorName: string; // Display Name
   status: 'confirmed' | 'pending' | 'completed' | 'cancelled';
   patientName?: string; // New field for admin view
+  clinicalNotes?: string; // Notas de evolución
 }
 
 export interface AppNotification {
