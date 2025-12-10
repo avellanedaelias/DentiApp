@@ -6,7 +6,9 @@ import { User, Appointment, Doctor, TreatmentType, AppNotification, DaySchedule,
 const USE_MOCK = false;
 
 // Use environment variable for Production (Vercel), fallback to Proxy for Local (Vite)
-const API_URL = process.env.VITE_API_URL || '/api';
+// IMPORTANT: We check if VITE_API_URL is defined. If so, we append '/api' to match the backend controllers.
+const ENV_URL = process.env.VITE_API_URL;
+const API_URL = ENV_URL ? `${ENV_URL}/api` : '/api';
 
 // --- MOCK DATA ---
 const MOCK_USER: User = {
@@ -132,9 +134,16 @@ export const authService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      if (!response.ok) throw new Error('Error en login');
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.message);
+         } catch(e) {
+          throw new Error(response.statusText);
+         }
+      }
       return response.json();
-    }
+      }    
   },
 
   register: async (name: string, email: string, password: string): Promise<User> => {
@@ -148,9 +157,46 @@ export const authService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password, phone: '' })
       });
-      if (!response.ok) throw new Error('Error en registro');
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.message);
+        } catch(e) {
+          throw new Error(response.statusText);
+        }
+      }
       return response.json();
     }
+  },
+
+
+  forgotPassword: async (email: string): Promise<void> => {
+    if (USE_MOCK) return Promise.resolve();
+    const response = await fetch(`${API_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    if (!response.ok) throw new Error('Error al solicitar recuperación.');
+  },
+
+  resetPassword: async (email: string, token: string, newPassword: string): Promise<void> => {
+    if (USE_MOCK) return Promise.resolve();
+    const response = await fetch(`${API_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, token, newPassword })
+    });
+    if (!response.ok) throw new Error('Error al restablecer contraseña. Token inválido.');
+  }
+};
+
+export const userService = {
+  getAll: async (): Promise<User[]> => {
+    if (USE_MOCK) return Promise.resolve([MOCK_USER]);
+    const response = await fetch(`${API_URL}/users`);
+    if (!response.ok) throw new Error('Error fetching users');
+    return response.json();
   }
 };
 
