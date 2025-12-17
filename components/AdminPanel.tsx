@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Appointment, User, Doctor, DaySchedule, DateRange, TreatmentType } from '../types';
 import { appointmentService, doctorService, userService } from '../services/api';
-import { Calendar, User as UserIcon, LogOut, Activity, CheckCircle, Ban, Search, Clock, Filter, Briefcase, Plus, Save, Trash2, LayoutDashboard, Users, FileText, ClipboardList, ChevronRight, X, ShieldAlert } from 'lucide-react';
+import { Calendar, User as UserIcon, LogOut, Activity, CheckCircle, Ban, Search, Clock, Filter, Briefcase, Plus, Save, Trash2, LayoutDashboard, Users, FileText, ClipboardList, ChevronRight, X, ShieldAlert, MessageCircle } from 'lucide-react';
 import { Logo } from './Logo';
 
 interface AdminPanelProps {
@@ -116,6 +116,23 @@ const DashboardView: React.FC = () => {
         return a.status === filter;
     });
 
+    const handleWhatsAppReminder = (appt: Appointment) => {
+        if (!appt.patientPhone) {
+            alert('El paciente no tiene un teléfono registrado.');
+            return;
+        }
+
+        // Clean phone number (remove +, spaces, etc if needed, but assuming DB has clean format)
+        // Usually wa.me needs just numbers
+        const cleanPhone = appt.patientPhone.replace(/[^0-9]/g, '');
+
+        const message = `Hola ${appt.patientName}, le recordamos su turno en DentiApp para *${appt.treatment}* el día ${new Date(appt.date).toLocaleDateString()} a las *${appt.time}hs* con ${appt.doctorName}. \n\n¿Confirma su asistencia?`;
+        
+        const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
+    };
+
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">
             <div className="lg:col-span-4 space-y-6">
@@ -191,11 +208,31 @@ const DashboardView: React.FC = () => {
                                 <div className="flex-1 w-full">
                                     <div className="flex justify-between items-start mb-1">
                                         <h3 className="font-bold text-slate-800 text-lg">{apt.patientName || 'Paciente Anónimo'}</h3>
-                                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${apt.status === 'confirmed' ? 'bg-blue-50 text-blue-600' : apt.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>{apt.status === 'confirmed' ? 'Confirmado' : apt.status === 'cancelled' ? 'Cancelado' : 'Completado'}</span>
+                                        
+                                        <div className="flex items-center gap-2">
+                                            {/* WhatsApp Reminder Button - Only for confirmed/pending appointments */}
+                                            {apt.status === 'confirmed' && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleWhatsAppReminder(apt);
+                                                    }}
+                                                    title="Enviar Recordatorio por WhatsApp"
+                                                    className="p-1.5 text-white bg-green-500 hover:bg-green-600 rounded-full transition-colors shadow-sm flex items-center gap-1 px-3"
+                                                >
+                                                    <MessageCircle size={14} />
+                                                    <span className="text-xs font-bold hidden sm:inline">Recordar</span>
+                                                </button>
+                                            )}
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${apt.status === 'confirmed' ? 'bg-blue-50 text-blue-600' : apt.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>{apt.status === 'confirmed' ? 'Confirmado' : apt.status === 'cancelled' ? 'Cancelado' : 'Completado'}</span>
+                                        </div>
                                     </div>
                                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm">
                                         <span className="font-medium text-primary-600 bg-primary-50 px-2 py-0.5 rounded-md self-start">{apt.treatment}</span>
                                         <span className="text-slate-500 flex items-center gap-1.5"><UserIcon size={14} />{apt.doctorName}</span>
+                                        {apt.patientPhone && (
+                                            <span className="text-slate-400 text-xs hidden sm:inline-block">Tel: {apt.patientPhone}</span>
+                                        )}
                                     </div>
                                 </div>
                             </div>

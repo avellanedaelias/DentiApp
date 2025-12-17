@@ -15,7 +15,7 @@ const MOCK_USER: User = {
   id: '1',
   name: 'Juan Pérez',
   email: 'juan@test.com',
-  phone: '555-0123',
+  phone: '5491112345678',
   role: 'patient'
 };
 
@@ -108,7 +108,8 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     doctorId: 'd1',
     doctorName: 'Dr. Ricardo Muelas',
     status: 'confirmed',
-    patientName: 'Juan Pérez'
+    patientName: 'Juan Pérez',
+    patientPhone: '5491112345678'
   },
   {
     id: '102',
@@ -119,6 +120,7 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     doctorName: 'Dra. Ana Sonrisa',
     status: 'completed',
     patientName: 'Maria Garcia',
+    patientPhone: '5491187654321',
     clinicalNotes: 'Paciente refiere leve sensibilidad. Se recomienda pasta fluorada.'
   }
 ];
@@ -322,7 +324,8 @@ export const appointmentService = {
             treatment,
             doctorId: doctorId,
             doctorName: doc ? doc.name : 'Desconocido',
-            status: 'confirmed'
+            status: 'confirmed',
+            patientPhone: '5491100000000' // Mock phone for new appts
           };
           resolve(newAppt);
         }, 1500);

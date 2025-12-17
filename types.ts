@@ -27,6 +27,7 @@ export interface Appointment {
   doctorName: string; // Display Name
   status: 'confirmed' | 'pending' | 'completed' | 'cancelled';
   patientName?: string; // New field for admin view
+  patientPhone?: string; // Nuevo: Para recordatorios de WhatsApp
   clinicalNotes?: string; // Notas de evolución
 }
 
