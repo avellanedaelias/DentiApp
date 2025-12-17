@@ -11,13 +11,24 @@ const ENV_URL = process.env.VITE_API_URL;
 const API_URL = ENV_URL ? `${ENV_URL}/api` : '/api';
 
 // --- MOCK DATA ---
-const MOCK_USER: User = {
-  id: '1',
-  name: 'Juan Pérez',
-  email: 'juan@test.com',
-  phone: '5491112345678',
-  role: 'patient'
-};
+let MOCK_USERS: User[] = [
+  {
+    id: '1',
+    name: 'Juan Pérez',
+    email: 'juan@test.com',
+    phone: '+5491112345678',
+    role: 'patient',
+    dni: '12345678',
+    dateOfBirth: '1990-05-15',
+    address: 'Av. Corrientes 1234'
+  },
+  {
+    id: '99',
+    name: 'Elias Avellaneda',
+    email: 'admin@denti.app',
+    role: 'admin'
+  }
+];
 
 const MOCK_ADMIN: User = {
   id: '99',
@@ -109,7 +120,7 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     doctorName: 'Dr. Ricardo Muelas',
     status: 'confirmed',
     patientName: 'Juan Pérez',
-    patientPhone: '5491112345678'
+    patientPhone: '+5491112345678'
   },
   {
     id: '102',
@@ -120,7 +131,7 @@ const MOCK_APPOINTMENTS: Appointment[] = [
     doctorName: 'Dra. Ana Sonrisa',
     status: 'completed',
     patientName: 'Maria Garcia',
-    patientPhone: '5491187654321',
+    patientPhone: '+5491187654321',
     clinicalNotes: 'Paciente refiere leve sensibilidad. Se recomienda pasta fluorada.'
   }
 ];
@@ -138,8 +149,10 @@ export const authService = {
     if (USE_MOCK) {
       return new Promise((resolve) => {
         setTimeout(() => {
-            if (email.includes('admin')) resolve(MOCK_ADMIN);
-            else resolve(MOCK_USER);
+            const user = MOCK_USERS.find(u => u.email === email);
+            if(user) resolve(user);
+            else if (email.includes('admin')) resolve(MOCK_USERS.find(u => u.role === 'admin')!);
+            else resolve(MOCK_USERS[0]);
         }, 1000);
       });
     } else {
@@ -163,8 +176,10 @@ export const authService = {
   register: async (name: string, email: string, password: string): Promise<User> => {
     if (USE_MOCK) {
       return new Promise((resolve) => {
-        setTimeout(() => resolve({ ...MOCK_USER, name, email }), 1000);
-      });
+        const newUser: User = { id: Date.now().toString(), name, email, role: 'patient' };
+        MOCK_USERS.push(newUser);
+        setTimeout(() => resolve(newUser), 1000);
+      });      
     } else {
       const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
@@ -207,26 +222,46 @@ export const authService = {
 
 export const userService = {
   getAll: async (): Promise<User[]> => {
-    if (USE_MOCK) return Promise.resolve([MOCK_USER, MOCK_ADMIN]);
+    if (USE_MOCK) return Promise.resolve(MOCK_USERS);
     const response = await fetch(`${API_URL}/users`);
     if (!response.ok) throw new Error('Error fetching users');
     return response.json();
   },
 
   delete: async (id: string): Promise<void> => {
-    if (USE_MOCK) return Promise.resolve();
+    if (USE_MOCK) {
+      MOCK_USERS = MOCK_USERS.filter(u => u.id !== id);
+      return Promise.resolve();
+    }
     const response = await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' });
     if (!response.ok) throw new Error('Error deleting user');
   },
 
   updateRole: async (id: string, role: 'admin' | 'patient'): Promise<void> => {
-    if (USE_MOCK) return Promise.resolve();
+    if (USE_MOCK) {
+      MOCK_USERS = MOCK_USERS.map(u => u.id === id ? { ...u, role } : u);
+      return Promise.resolve();
+    }
+    
     const response = await fetch(`${API_URL}/users/${id}/role`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role })
     });
     if (!response.ok) throw new Error('Error updating user role');
+  },
+
+  update: async (id: string, data: Partial<User>): Promise<void> => {
+    if (USE_MOCK) {
+      MOCK_USERS = MOCK_USERS.map(u => u.id === id ? { ...u, ...data } : u);
+      return Promise.resolve();
+    }
+    const response = await fetch(`${API_URL}/users/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error('Error updating user');
   }
 };
 

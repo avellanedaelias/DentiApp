@@ -16,6 +16,9 @@ export interface User {
   email: string;
   phone?: string;
   role: 'admin' | 'patient';
+  dateOfBirth?: string; // ISO Date YYYY-MM-DD
+  dni?: string;
+  address?: string;
 }
 
 export interface Appointment {
